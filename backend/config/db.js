@@ -1,31 +1,49 @@
-const { Pool } = require('pg');
 require('dotenv').config();
+const { Pool } = require('pg');
 
 const pool = new Pool({
-  host:     process.env.DB_HOST     || 'localhost',
-  port:     process.env.DB_PORT     || 5432,
-  database: process.env.DB_NAME     || 'cineplex_db',
-  user:     process.env.DB_USER     || 'postgres',
-  password: process.env.DB_PASSWORD || 'yourpassword',
-  max:               20,   // max connections in pool
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  host:     '127.0.0.1',
+  port:     5433,
+  database: 'cineplex_db',
+  user:     'postgres',
+  password: 'yourpassword', // ← what you typed during install
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis:       30000,
 });
 
-// Test connection on startup
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error('❌ PostgreSQL connection error:', err.message);
-  } else {
-    console.log('✅ PostgreSQL connected successfully');
-    release();
+const query = async (text, params) => {
+  const client = await pool.connect();
+  try {
+    await client.query('SET search_path TO public');
+    const result = await client.query(text, params);
+    return result;
+  } finally {
+    client.release();
   }
-});
+};
 
-// Helper — run a query
-const query = (text, params) => pool.query(text, params);
+const getClient = async () => {
+  const client = await pool.connect();
+  await client.query('SET search_path TO public');
+  return client;
+};
 
-// Helper — get a client for transactions
-const getClient = () => pool.connect();
+pool.connect()
+  .then(client => {
+    client.query('SET search_path TO public');
+    console.log('✅ PostgreSQL connected successfully');
+    client.release();
+  })
+  .catch(err => console.error('❌ PostgreSQL connection error:', err.message));
 
-module.exports = { query, getClient, pool };
+module.exports = { pool, query, getClient };
+pool.connect()
+  .then(async client => {
+    const db     = await client.query('SELECT current_database()');
+    const schema = await client.query('SELECT table_name FROM information_schema.tables WHERE table_schema = $1', ['public']);
+    console.log('✅ PostgreSQL connected successfully');
+    console.log('📦 Connected to DB:', db.rows[0].current_database);
+    console.log('📋 Tables found:', schema.rows.map(r => r.table_name));
+    client.release();
+  })
+  .catch(err => console.error('❌ PostgreSQL connection error:', err.message));

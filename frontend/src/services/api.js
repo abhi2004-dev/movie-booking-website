@@ -60,8 +60,8 @@ export const movieAPI = {
 // ─── BOOKINGS ─────────────────────────────────────────────────────────────────
 export const bookingAPI = {
   getAll:       ()           => api.get('/bookings'),
-  getById:      (id)         => api.get(`/bookings/${id}`),
-  getSeatAvailability: (showtimeId) => api.get(`/bookings/seats/${showtimeId}`),
+getById: (id, date) =>
+  api.get(`/movies/${id}`, { params: { date } }),  getSeatAvailability: (showtimeId) => api.get(`/bookings/seats/${showtimeId}`),
   lockSeats:    (data)       => api.post('/bookings/lock', data),
   create:       (data)       => api.post('/bookings', data),
   cancel:       (id)         => api.put(`/bookings/${id}/cancel`),

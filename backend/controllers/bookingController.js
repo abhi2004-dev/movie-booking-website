@@ -10,8 +10,8 @@ const getSeatAvailability = async (req, res) => {
 
     const showtime = await Showtime.findById(showtimeId);
     if (!showtime) {
-      return res.status(404).json({ error: 'Showtime not found' });
-    }
+  return res.status(404).json({ error: 'No show for this showtime' });
+}
 
     // Get booked seats from DB
     const bookedSeats = await Showtime.getBookedSeats(showtimeId);

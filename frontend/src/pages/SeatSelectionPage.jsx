@@ -1,284 +1,335 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { bookingAPI, movieAPI } from '../services/api';
 import { useBooking } from '../context/BookingContext';
-import { bookingAPI } from '../services/api';
+import useSocket from '../hooks/useSocket';
 import SeatGrid from '../components/SeatGrid';
 import { PageLoader } from '../components/Loader';
 import {
-  formatTime, formatDate, calcSeatsTotal,
-  calcFee, calcGrandTotal, formatCurrency, sortSeats,
+  formatTime, formatDate, formatCurrency,
+  calcFee, calcGrandTotal, calcSeatsTotal,
+  getSeatCategory, getSeatPrice,
 } from '../utils/helpers';
-import useSocket from '../hooks/useSocket';
 import toast from 'react-hot-toast';
 
 export default function SeatSelectionPage() {
-  const navigate  = useNavigate();
+  const navigate      = useNavigate();
+  const [params]      = useSearchParams();
+  const showtimeId    = params.get('showtime');
+
   const {
     selectedMovie, selectedShowtime, selectedDate,
-    setSeats, user,
+    setSeats, setBooking, setOrder,
   } = useBooking();
 
-  const [bookedSeats,  setBookedSeats]  = useState([]);
-  const [lockedSeats,  setLockedSeats]  = useState([]);
-  const [selectedSts,  setSelectedSts]  = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [locking,      setLocking]      = useState(false);
+  const [seatStatus,    setSeatStatus]    = useState({ booked: [], locked: [] });
+  const [selectedSeats, setSelectedSeats] = useState([]);
+  const [pricing,       setPricing]       = useState({});
+  const [loading,       setLoading]       = useState(true);
+  const [locking,       setLocking]       = useState(false);
 
-  // ─── REDIRECT IF NO SHOWTIME SELECTED ────────────────────────────────
+  // ─── SOCKET ─────────────────────────────────────────────────────────────
+  const { joinShowtime, leaveShowtime, lockSeats, unlockSeats } = useSocket({
+    onSeatsLocked: useCallback(({ seats }) => {
+      setSeatStatus((prev) => ({
+        ...prev,
+        locked: [...new Set([...prev.locked, ...seats])],
+      }));
+    }, []),
+    onSeatsUnlocked: useCallback(({ seats }) => {
+      setSeatStatus((prev) => ({
+        ...prev,
+        locked: prev.locked.filter((s) => !seats.includes(s)),
+      }));
+    }, []),
+    onSeatsConfirmed: useCallback(({ seats }) => {
+      setSeatStatus((prev) => ({
+        ...prev,
+        booked: [...new Set([...prev.booked, ...seats])],
+        locked: prev.locked.filter((s) => !seats.includes(s)),
+      }));
+    }, []),
+  });
+
+  // ─── FETCH SEAT STATUS ────────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedMovie || !selectedShowtime) {
-      toast.error('Please select a movie and showtime first');
+    if (!showtimeId) {
+      toast.error('Invalid showtime');
       navigate('/movies');
+      return;
     }
-  }, []);
 
-  // ─── FETCH SEAT AVAILABILITY ──────────────────────────────────────────
-  useEffect(() => {
-    if (!selectedShowtime?.showtime_id) return;
     const fetchSeats = async () => {
-      setLoading(true);
-      try {
-        const res = await bookingAPI.getSeatAvailability(selectedShowtime.showtime_id);
-        setBookedSeats(res.data.booked_seats || []);
-        setLockedSeats(res.data.locked_seats || []);
-      } catch {
-        toast.error('Failed to load seat availability');
-      } finally {
-        setLoading(false);
-      }
-    };
+  try {
+    console.log('Fetching seats for showtime:', showtimeId);
+    const res = await bookingAPI.getSeatAvailability(showtimeId);
+    console.log('Seat response:', res.data);
+    setSeatStatus({
+      booked: res.data.booked_seats || [],
+      locked: res.data.locked_seats || [],
+    });
+    setPricing({
+      price_premium: res.data.pricing?.premium,
+      price_gold:    res.data.pricing?.gold,
+      price_silver:  res.data.pricing?.silver,
+    });
+  } catch (err) {
+    console.error('Seat fetch error:', err);
+    toast.error('Failed to load seats');
+  } finally {
+    setLoading(false);
+  }
+};
+
     fetchSeats();
-  }, [selectedShowtime]);
+    joinShowtime(showtimeId);
+    return () => leaveShowtime(showtimeId);
+  }, [showtimeId]);
 
-  // ─── REAL-TIME SOCKET ─────────────────────────────────────────────────
-  const { lockSeats: socketLock, unlockSeats: socketUnlock } = useSocket(
-    selectedShowtime?.showtime_id,
-    {
-      onSeatsLocked: (seats) => {
-        setLockedSeats((prev) => [...new Set([...prev, ...seats])]);
-      },
-      onSeatsUnlocked: (seats) => {
-        setLockedSeats((prev) => prev.filter((s) => !seats.includes(s)));
-      },
-      onSeatsConfirmed: (seats) => {
-        setBookedSeats((prev) => [...new Set([...prev, ...seats])]);
-        setLockedSeats((prev) => prev.filter((s) => !seats.includes(s)));
-      },
-    }
-  );
-
-  // ─── SEAT CLICK ───────────────────────────────────────────────────────
+  // ─── SEAT CLICK ──────────────────────────────────────────────────────
   const handleSeatClick = (seatCode) => {
-    setSelectedSts((prev) => {
+    setSelectedSeats((prev) => {
       if (prev.includes(seatCode)) return prev.filter((s) => s !== seatCode);
-      if (prev.length >= 10) {
-        toast.error('Maximum 10 seats per booking');
-        return prev;
-      }
+      if (prev.length >= 8) { toast.error('Max 8 seats per booking'); return prev; }
       return [...prev, seatCode];
     });
   };
 
-  // ─── PROCEED TO PAYMENT ───────────────────────────────────────────────
+  // ─── PROCEED ─────────────────────────────────────────────────────────
   const handleProceed = async () => {
-    if (selectedSts.length === 0) return toast.error('Please select at least one seat');
+    if (selectedSeats.length === 0) {
+      toast.error('Please select at least one seat');
+      return;
+    }
     setLocking(true);
     try {
-      // Lock seats via API
-      await bookingAPI.lockSeats({
-        showtimeId: selectedShowtime.showtime_id,
-        seatCodes:  selectedSts,
-      });
-
-      // Also emit via socket so other users see immediately
-      socketLock(selectedSts, user?.id);
-
-      // Save to context
-      setSeats(selectedSts);
-
-      toast.success(`${selectedSts.length} seat${selectedSts.length > 1 ? 's' : ''} locked for 10 minutes!`);
+      await bookingAPI.lockSeats({ showtime_id: showtimeId, seats: selectedSeats });
+      lockSeats(showtimeId, selectedSeats);
+      setSeats(selectedSeats);
       navigate('/payment');
-
     } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to lock seats';
-      toast.error(msg);
+      toast.error(err.response?.data?.error || 'Failed to lock seats');
     } finally {
       setLocking(false);
     }
   };
 
-  // ─── GO BACK — unlock seats ───────────────────────────────────────────
-  const handleBack = () => {
-    if (selectedSts.length > 0) {
-      socketUnlock(selectedSts);
-    }
-    navigate(`/movies/${selectedMovie?.id}`);
+  // ─── CLEAR ───────────────────────────────────────────────────────────
+  const handleClear = () => {
+    setSelectedSeats([]);
   };
 
   if (loading) return <PageLoader message="Loading seats…" />;
-  if (!selectedMovie || !selectedShowtime) return null;
 
-  const pricing = {
-    premium: selectedShowtime.price_premium,
-    gold:    selectedShowtime.price_gold,
-    silver:  selectedShowtime.price_silver,
-  };
-  const subtotal  = calcSeatsTotal(selectedSts, pricing);
-  const fee       = calcFee(subtotal);
-  const grandTotal= calcGrandTotal(subtotal);
-  const sorted    = sortSeats(selectedSts);
+  const subtotal   = calcSeatsTotal(selectedSeats, pricing);
+  const fee        = calcFee(subtotal);
+  const grandTotal = subtotal + fee;
 
   return (
-    <div className="page-enter" style={{ minHeight: '100vh', paddingTop: 72 }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 44px 88px' }}>
+    <div style={{ minHeight: '100vh', paddingTop: 80 }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px 88px' }}>
 
         {/* ─── HEADER ────────────────────────────────────────────────── */}
-        <button onClick={handleBack} style={{
-          background: 'none', border: 'none',
-          color: 'var(--muted)', cursor: 'pointer',
-          fontSize: 13, fontFamily: 'Outfit, sans-serif',
-          marginBottom: 14,
-        }}>← Back to {selectedMovie.title}</button>
-
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0  }}
           transition={{ duration: 0.5 }}
+          style={{ marginBottom: 32 }}
         >
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              background: 'none', border: 'none',
+              color: 'var(--muted)', cursor: 'pointer',
+              fontSize: 13, marginBottom: 16,
+              fontFamily: 'Outfit, sans-serif',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >← Back</button>
+
+          <div className="section-label">Select Your Seats</div>
           <h1 style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 42, color: '#ede9e0', marginBottom: 4,
-          }}>{selectedMovie.title}</h1>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 40 }}>
-            {formatDate(selectedDate)} · {formatTime(selectedShowtime.show_time)} · {selectedShowtime.venue_name?.split(',')[0]} · {selectedShowtime.screen_name}
-          </p>
+            fontSize: 44, fontWeight: 700, color: '#ede9e0',
+          }}>{selectedMovie?.title || 'Choose Seats'}</h1>
+
+          {/* Show info */}
+          {selectedShowtime && (
+            <div style={{
+              display: 'flex', gap: 18, marginTop: 10, flexWrap: 'wrap',
+            }}>
+              {[
+                ['📅', formatDate(selectedDate)],
+                ['🕐', formatTime(selectedShowtime.show_time)],
+                ['🎭', (selectedShowtime.venue_name || '').split(',')[0]],
+                ['🎬', selectedShowtime.screen_name],
+              ].map(([icon, val]) => (
+                <span key={val} style={{ color: 'var(--muted)', fontSize: 13 }}>
+                  {icon} {val}
+                </span>
+              ))}
+            </div>
+          )}
         </motion.div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 52 }}>
+        {/* ─── MAIN LAYOUT ───────────────────────────────────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 36 }}>
 
           {/* ─── SEAT GRID ───────────────────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.1 }}
+            style={{
+              background:   'var(--surface)',
+              border:       '1px solid var(--border)',
+              borderRadius: 18, padding: '36px 24px',
+              overflowX:    'auto',
+            }}
           >
             <SeatGrid
-              bookedSeats={bookedSeats}
-              lockedSeats={lockedSeats}
-              selectedSeats={selectedSts}
+              bookedSeats={seatStatus.booked}
+              lockedSeats={seatStatus.locked}
+              selectedSeats={selectedSeats}
               onSeatClick={handleSeatClick}
               pricing={pricing}
-              disabled={locking}
             />
           </motion.div>
 
-          {/* ─── SUMMARY SIDEBAR ─────────────────────────────────────── */}
-          <div style={{ position: 'sticky', top: 80, height: 'fit-content' }}>
+          {/* ─── SUMMARY ─────────────────────────────────────────────── */}
+          <div>
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0  }}
               transition={{ duration: 0.5, delay: 0.2 }}
               style={{
-                background: 'var(--surface)', borderRadius: 16,
-                border: '1px solid var(--border)', padding: 22,
+                background:   'var(--surface)',
+                border:       '1px solid var(--border)',
+                borderRadius: 18, padding: '24px',
+                position:     'sticky', top: 88,
               }}
             >
               <h3 style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: 22, color: '#ede9e0', marginBottom: 18,
-              }}>Your Selection</h3>
+                fontFamily:   "'Cormorant Garamond', serif",
+                fontSize:     22, color: '#ede9e0', marginBottom: 20,
+              }}>Booking Summary</h3>
 
-              {/* Show info */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ color: '#ede9e0', fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
-                  {selectedMovie.title}
-                </div>
-                <div style={{ color: 'var(--muted)', fontSize: 12 }}>
-                  {formatTime(selectedShowtime.show_time)} · {formatDate(selectedDate)}
-                </div>
-                <div style={{ color: 'var(--muted)', fontSize: 12 }}>
-                  {selectedShowtime.venue_name?.split(',')[0]}
-                </div>
+              {/* Selected seats */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{
+                  color: 'var(--muted)', fontSize: 11,
+                  letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10,
+                }}>Selected Seats</div>
+
+                {selectedSeats.length === 0 ? (
+                  <p style={{ color: 'var(--muted)', fontSize: 13 }}>
+                    Click seats on the grid to select
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {selectedSeats.map((s) => (
+                      <span key={s} style={{
+                        background:   'rgba(240,192,64,0.1)',
+                        border:       '1px solid rgba(240,192,64,0.3)',
+                        color:        'var(--gold)',
+                        fontSize:     12, fontWeight: 600,
+                        padding:      '3px 9px', borderRadius: 5,
+                      }}>{s}</span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {selectedSts.length > 0 ? (
-                <>
-                  {/* Selected seats */}
-                  <div style={{
-                    borderTop: '1px solid var(--border)',
-                    paddingTop: 14, marginBottom: 14,
-                  }}>
-                    <label className="label">Selected Seats</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                      {sorted.map((s) => (
-                        <span key={s} style={{
-                          background: 'rgba(240,192,64,0.1)',
-                          border: '1px solid rgba(240,192,64,0.28)',
-                          color: 'var(--gold)', fontSize: 11,
-                          padding: '2px 7px', borderRadius: 4,
-                        }}>{s}</span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Price breakdown */}
-                  <div style={{
-                    borderTop: '1px solid var(--border)',
-                    paddingTop: 13, marginBottom: 18,
-                  }}>
-                    {sorted.map((s) => {
-                      const row = s[0];
-                      const cat = ['A','B'].includes(row) ? 'premium' : ['C','D','E','F','G'].includes(row) ? 'gold' : 'silver';
-                      return (
-                        <div key={s} style={{
-                          display: 'flex', justifyContent: 'space-between',
-                          fontSize: 12, marginBottom: 5,
-                        }}>
-                          <span style={{ color: 'var(--muted)' }}>Seat {s} ({cat})</span>
-                          <span style={{ color: '#ede9e0' }}>{formatCurrency(pricing[cat])}</span>
-                        </div>
-                      );
-                    })}
-                    <div style={{
-                      borderTop: '1px solid var(--border)',
-                      marginTop: 9, paddingTop: 9,
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    }}>
-                      <span style={{ color: '#ede9e0', fontWeight: 700, fontSize: 13 }}>Subtotal</span>
-                      <span style={{
-                        fontFamily: "'Cormorant Garamond', serif",
-                        fontSize: 24, fontWeight: 700, color: 'var(--gold)',
-                      }}>{formatCurrency(subtotal)}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    className="btn-gold"
-                    style={{ width: '100%', padding: 13, fontSize: 13 }}
-                    onClick={handleProceed}
-                    disabled={locking}
-                  >
-                    {locking ? '🔒 Locking Seats…' : 'Proceed to Payment →'}
-                  </button>
-                </>
-              ) : (
+              {/* Seat breakdown */}
+              {selectedSeats.length > 0 && (
                 <div style={{
-                  color: 'var(--muted)', fontSize: 13,
-                  textAlign: 'center', padding: '22px 0',
+                  borderTop:  '1px solid var(--border)',
+                  paddingTop: 16, marginBottom: 16,
                 }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>🪑</div>
-                  Tap seats to select them
+                  {selectedSeats.map((s) => {
+                    const cat   = getSeatCategory(s[0]);
+                    const price = getSeatPrice(s[0], pricing);
+                    return (
+                      <div key={s} style={{
+                        display:        'flex',
+                        justifyContent: 'space-between',
+                        marginBottom:   6,
+                      }}>
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+                          Seat {s} <span style={{ fontSize: 10 }}>({cat})</span>
+                        </span>
+                        <span style={{ color: '#ede9e0', fontSize: 12 }}>
+                          ₹{price}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-            </motion.div>
 
-            {selectedSts.length > 0 && (
-              <p style={{
-                color: 'var(--muted)', fontSize: 11,
-                textAlign: 'center', marginTop: 10,
-              }}>🔒 Seats held 10 mins once you proceed</p>
-            )}
+              {/* Totals */}
+              {selectedSeats.length > 0 && (
+                <div style={{
+                  borderTop:  '1px solid var(--border)',
+                  paddingTop: 16, marginBottom: 20,
+                }}>
+                  {[
+                    ['Subtotal',        formatCurrency(subtotal)],
+                    ['Convenience Fee', formatCurrency(fee)],
+                  ].map(([label, val]) => (
+                    <div key={label} style={{
+                      display:        'flex',
+                      justifyContent: 'space-between',
+                      marginBottom:   8,
+                    }}>
+                      <span style={{ color: 'var(--muted)', fontSize: 13 }}>{label}</span>
+                      <span style={{ color: '#ede9e0', fontSize: 13 }}>{val}</span>
+                    </div>
+                  ))}
+                  <div style={{
+                    display:        'flex',
+                    justifyContent: 'space-between',
+                    marginTop:      10, paddingTop: 10,
+                    borderTop:      '1px solid var(--border)',
+                  }}>
+                    <span style={{ color: '#ede9e0', fontWeight: 600 }}>Total</span>
+                    <span style={{
+                      fontFamily: "'Cormorant Garamond', serif",
+                      fontSize: 22, fontWeight: 700, color: 'var(--gold)',
+                    }}>{formatCurrency(grandTotal)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button className="btn-gold"
+                  style={{ width: '100%', padding: 14, fontSize: 15 }}
+                  onClick={handleProceed}
+                  disabled={selectedSeats.length === 0 || locking}
+                >
+                  {locking ? '⏳ Locking Seats…' : `🎟️ Proceed to Payment`}
+                </button>
+
+                {selectedSeats.length > 0 && (
+                  <button className="btn-ghost"
+                    style={{ width: '100%', padding: 12, fontSize: 13 }}
+                    onClick={handleClear}
+                  >Clear Selection</button>
+                )}
+              </div>
+
+              {/* Timer warning */}
+              {selectedSeats.length > 0 && (
+                <p style={{
+                  color: 'var(--muted)', fontSize: 11,
+                  textAlign: 'center', marginTop: 14, lineHeight: 1.6,
+                }}>
+                  ⏱️ Seats are held for 10 minutes after locking
+                </p>
+              )}
+            </motion.div>
           </div>
         </div>
       </div>
