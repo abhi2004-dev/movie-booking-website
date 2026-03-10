@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Cinéplex — Book movie tickets online. Best seats, best prices, instant confirmation." />
+    <meta name="theme-color" content="#07070f" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Razorpay Checkout SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <!-- Open Graph -->
+    <meta property="og:title"       content="Cinéplex — Movie Ticket Booking" />
+    <meta property="og:description" content="Book movie tickets online instantly." />
+    <meta property="og:type"        content="website" />
+
+    <title>Cinéplex — Book Movie Tickets</title>
+
+    <style>
+      /* Prevent flash of unstyled content */
+      html, body {
+        background-color: #07070f;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* Full page loader shown before React mounts */
+      #initial-loader {
+        position: fixed;
+        inset: 0;
+        background: #07070f;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 16px;
+        z-index: 9999;
+        transition: opacity 0.4s ease;
+      }
+
+      #initial-loader .logo {
+        font-family: 'Cormorant Garamond', serif;
+        font-size: 32px;
+        font-weight: 700;
+        color: #ede9e0;
+        letter-spacing: 2px;
+      }
+
+      #initial-loader .spinner {
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgba(240, 192, 64, 0.15);
+        border-top-color: #f0c040;
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      #initial-loader.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Initial loader (disappears once React mounts) -->
+    <div id="initial-loader">
+      <div class="logo">🎬 CINÉPLEX</div>
+      <div class="spinner"></div>
+    </div>
+
+    <!-- React root -->
+    <div id="root"></div>
+
+    <!-- Hide loader once React is ready -->
+    <script>
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          const loader = document.getElementById('initial-loader');
+          if (loader) {
+            loader.classList.add('hidden');
+            setTimeout(() => loader.remove(), 400);
+          }
+        }, 500);
+      });
+    </script>
+
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
