@@ -38,11 +38,12 @@ api.interceptors.response.use(
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 export const authAPI = {
-  register: (data)   => api.post('/auth/register', data),
-  login:    (data)   => api.post('/auth/login', data),
-  getProfile:()      => api.get('/auth/profile'),
-  updateProfile:(data)=> api.put('/auth/profile', data),
-  verify:   ()       => api.get('/auth/verify'),
+  sendOtp:      (data)   => api.post('/auth/send-otp', data),
+  verifyOtp:    (data)   => api.post('/auth/verify-otp', data),
+  googleLogin:  (data)   => api.post('/auth/google-login', data),
+  getProfile:   ()       => api.get('/auth/profile'),
+  updateProfile:(data)   => api.put('/auth/profile', data),
+  verify:       ()       => api.get('/auth/verify'),
 };
 
 // ─── MOVIES ───────────────────────────────────────────────────────────────────

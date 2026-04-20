@@ -110,6 +110,26 @@ const Movie = {
     return result.rows;
   },
 
+  async upsertMovie(movie) {
+    const sql = `
+      INSERT INTO public.movies (id, title, description, duration, language, genre, rating, release_year, poster_url, trailer_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        description = EXCLUDED.description,
+        rating = EXCLUDED.rating,
+        poster_url = EXCLUDED.poster_url,
+        trailer_url = EXCLUDED.trailer_url
+      RETURNING *;
+    `;
+    const values = [
+      movie.id, movie.title, movie.description, movie.duration, movie.language, 
+      movie.genre, movie.rating, movie.release_year, movie.poster_url, movie.trailer_url
+    ];
+    const result = await query(sql, values);
+    return result.rows[0];
+  }
+
 };
 
 module.exports = Movie;

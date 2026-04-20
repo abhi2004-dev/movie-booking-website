@@ -4,13 +4,16 @@ const bcrypt    = require('bcryptjs');
 const User = {
 
   // ─── CREATE ────────────────────────────────────────────────────────────────
-  async create({ name, email, phone, password }) {
-    const hashed = await bcrypt.hash(password, 12);
+  async create({ name, email, phone = null, password = null, google_id = null }) {
+    let hashed = null;
+    if (password) {
+      hashed = await bcrypt.hash(password, 12);
+    }
     const result = await query(
-      `INSERT INTO users (name, email, phone, password)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (name, email, phone, password, google_id)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, name, email, phone, role, created_at`,
-      [name, email, phone, hashed]
+      [name, email, phone, hashed, google_id]
     );
     return result.rows[0];
   },
@@ -20,6 +23,15 @@ const User = {
     const result = await query(
       `SELECT * FROM users WHERE email = $1`,
       [email]
+    );
+    return result.rows[0] || null;
+  },
+
+  // ─── FIND BY GOOGLE ID ─────────────────────────────────────────────────────
+  async findByGoogleId(googleId) {
+    const result = await query(
+      `SELECT * FROM users WHERE google_id = $1`,
+      [googleId]
     );
     return result.rows[0] || null;
   },

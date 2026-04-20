@@ -6,8 +6,9 @@ CREATE TABLE IF NOT EXISTS users (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name         VARCHAR(100) NOT NULL,
   email        VARCHAR(150) UNIQUE NOT NULL,
-  phone        VARCHAR(15) UNIQUE NOT NULL,
-  password     VARCHAR(255) NOT NULL,
+  phone        VARCHAR(15) UNIQUE,
+  password     VARCHAR(255),
+  google_id    VARCHAR(255),
   role         VARCHAR(10) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
   created_at   TIMESTAMP DEFAULT NOW(),
   updated_at   TIMESTAMP DEFAULT NOW()

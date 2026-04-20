@@ -84,20 +84,23 @@ export default function MovieDetailPage() {
         position: 'relative', height: 520,
         overflow: 'hidden', display: 'flex', alignItems: 'flex-end',
       }}>
-        <div style={{ position: 'absolute', inset: 0, background: meta.grad, opacity: 0.7 }}/>
+        {movie.trailer_url ? (
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `url(${movie.trailer_url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.4,
+            filter: 'blur(3px)',
+          }}/>
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, background: meta.grad, opacity: 0.7 }}/>
+        )}
+
         <div style={{
           position: 'absolute', inset: 0,
-          background: 'linear-gradient(to top, #07070f 30%, transparent 100%)',
+          background: 'linear-gradient(to top, #07070f 10%, rgba(7,7,15,0.4) 60%, transparent 100%)',
         }}/>
-        <motion.div
-          animate={{ y: [0, -16, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 180, opacity: 0.08,
-          }}
-        >{meta.icon}</motion.div>
 
         <div style={{
           position: 'relative', zIndex: 1,
@@ -110,13 +113,21 @@ export default function MovieDetailPage() {
             animate={{ opacity: 1, y: 0  }}
             transition={{ duration: 0.7 }}
             style={{
-              width: 150, height: 220, borderRadius: 14, flexShrink: 0,
-              background: meta.grad, border: '1px solid rgba(240,192,64,0.2)',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+              width: 160, height: 240, borderRadius: 14, flexShrink: 0,
+              background: 'var(--surface)', border: '1px solid rgba(240,192,64,0.2)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 60, overflow: 'hidden',
             }}
-          >{meta.icon}</motion.div>
+          >
+            {movie.poster_url ? (
+              <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ background: meta.grad, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {meta.icon}
+              </div>
+            )}
+          </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}

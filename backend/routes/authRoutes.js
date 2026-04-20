@@ -1,8 +1,9 @@
 const express = require('express');
 const router  = express.Router();
 const {
-  register,
-  login,
+  sendOtp,
+  verifyOtp,
+  googleLogin,
   getProfile,
   updateProfile,
   verifyToken,
@@ -10,8 +11,9 @@ const {
 const { protect } = require('../middleware/authMiddleware');
 
 // ─── PUBLIC ROUTES ────────────────────────────────────────────────────────────
-router.post('/register', register);
-router.post('/login',    login);
+router.post('/send-otp',    sendOtp);
+router.post('/verify-otp',  verifyOtp);
+router.post('/google-login', googleLogin);
 
 // ─── PROTECTED ROUTES ─────────────────────────────────────────────────────────
 router.get('/profile',    protect, getProfile);

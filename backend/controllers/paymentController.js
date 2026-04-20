@@ -1,6 +1,8 @@
 const Razorpay = require('razorpay');
 const crypto   = require('crypto');
 const Booking  = require('../models/Booking');
+const User     = require('../models/User');
+const mailer   = require('../utils/mailer');
 const { unlockMultipleSeats } = require('../config/redis');
 
 // ─── INIT RAZORPAY ────────────────────────────────────────────────────────────
@@ -102,6 +104,25 @@ const verifyPayment = async (req, res) => {
         seats:       booking.seats,
         status:      'booked',
       });
+    }
+
+    // Fetch user to send email
+    const user = await User.findById(booking.user_id);
+    if (user && user.email) {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Ticket Confirmed! 🍿</h2>
+          <p>Hi ${user.name}, your payment was successful.</p>
+          <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin-top: 20px;">
+            <p><strong>Booking ID:</strong> ${bookingId}</p>
+            <p><strong>Seats:</strong> ${booking.seats.join(', ')}</p>
+            <p><strong>Amount Paid:</strong> ₹${booking.grand_total}</p>
+          </div>
+          <p style="margin-top: 20px;">Present this email or your app ticket at the entrance.</p>
+          <p>Enjoy the show!</p>
+        </div>
+      `;
+      await mailer.sendEmail(user.email, '🎟️ Your Cinéplex Tickets are Confirmed!', emailHtml);
     }
 
     res.json({

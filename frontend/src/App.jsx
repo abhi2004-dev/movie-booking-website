@@ -16,35 +16,64 @@ import MyBookingsPage      from './pages/MyBookingsPage';
 
 // ─── AUTH PAGES (inline — small enough) ──────────────────────────────────────
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { authAPI } from './services/api';
 import { useBooking } from './context/BookingContext';
-import { isValidEmail, isValidPhone, isValidPassword } from './utils/helpers';
+import { isValidEmail } from './utils/helpers';
 import toast from 'react-hot-toast';
 import { Spinner } from './components/Loader';
+import { GoogleLogin } from '@react-oauth/google';
 
-// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
-function LoginPage() {
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [loading,  setLoading]  = useState(false);
-  const { login }   = useBooking();
-  const navigate    = useNavigate();
+// ─── AUTH PAGE (OTP & Google Login) ──────────────────────────────────────────
+function AuthPage() {
+  const [step,     setStep]    = useState('email'); // 'email' | 'otp'
+  const [email,    setEmail]   = useState('');
+  const [otp,      setOtp]     = useState('');
+  const [loading,  setLoading] = useState(false);
+  const { login }  = useBooking();
+  const navigate   = useNavigate();
 
-  const handleSubmit = async () => {
-    if (!email || !password) return toast.error('All fields are required');
+  const handleSendOtp = async () => {
+    if (!email) return toast.error('Email is required');
     if (!isValidEmail(email)) return toast.error('Enter a valid email');
+    
     setLoading(true);
     try {
-      const res = await authAPI.login({ email, password });
-      login(res.data.token, res.data.user);
-      toast.success(`Welcome back, ${res.data.user.name.split(' ')[0]}! 🎬`);
-      navigate('/');
+      await authAPI.sendOtp({ email });
+      toast.success('OTP sent to your email! 📩');
+      setStep('otp');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Login failed');
+      toast.error(err.response?.data?.error || 'Failed to send OTP');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length !== 6) return toast.error('Enter a valid 6-digit OTP');
+    
+    setLoading(true);
+    try {
+      const res = await authAPI.verifyOtp({ email, otp });
+      login(res.data.token, res.data.user);
+      toast.success(`Welcome to Cinéplex, ${res.data.user.name.split(' ')[0]}! 🎬`);
+      navigate('/');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Invalid OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const res = await authAPI.googleLogin({ credential: credentialResponse.credential });
+      login(res.data.token, res.data.user);
+      toast.success(`Welcome to Cinéplex, ${res.data.user.name.split(' ')[0]}! 🎬`);
+      navigate('/');
+    } catch (err) {
+      toast.error('Google Login failed');
     }
   };
 
@@ -66,126 +95,74 @@ function LoginPage() {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🎬</div>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>{step === 'email' ? '🍿' : '🔐'}</div>
           <h1 style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 36, color: '#ede9e0', marginBottom: 6,
-          }}>Welcome Back</h1>
-          <p style={{ color: 'var(--muted)', fontSize: 14 }}>Sign in to your Cinéplex account</p>
+          }}>{step === 'email' ? 'Welcome' : 'Enter OTP'}</h1>
+          <p style={{ color: 'var(--muted)', fontSize: 14 }}>
+            {step === 'email' ? 'Sign in or create an account' : `We sent a code to ${email}`}
+          </p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {[
-            ['Email', 'email', email, setEmail, 'you@example.com'],
-            ['Password', 'password', password, setPassword, '••••••••'],
-          ].map(([label, type, val, setter, ph]) => (
-            <div key={label}>
-              <label className="label">{label}</label>
-              <input className="field" type={type} placeholder={ph}
-                value={val} onChange={(e) => setter(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+        {step === 'email' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => toast.error('Google Login Failed')}
+                theme="filled_black"
+                shape="pill"
               />
             </div>
-          ))}
-        </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '10px 0' }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              <span style={{ color: 'var(--muted)', fontSize: 12 }}>OR</span>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            </div>
 
-        <button className="btn-gold"
-          style={{ width: '100%', padding: 15, fontSize: 15, marginTop: 24 }}
-          onClick={handleSubmit} disabled={loading}
-        >
-          {loading ? <Spinner size={18} color="#06060c" /> : 'Sign In →'}
-        </button>
-
-        <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, marginTop: 20 }}>
-          Don't have an account?{' '}
-          <Link to="/register" style={{ color: 'var(--gold)', textDecoration: 'none' }}>Sign Up</Link>
-        </p>
-      </motion.div>
-    </div>
-  );
-}
-
-// ─── REGISTER PAGE ────────────────────────────────────────────────────────────
-function RegisterPage() {
-  const [form,    setForm]    = useState({ name: '', email: '', phone: '', password: '' });
-  const [loading, setLoading] = useState(false);
-  const { login }  = useBooking();
-  const navigate   = useNavigate();
-
-  const update = (key, val) => setForm((p) => ({ ...p, [key]: val }));
-
-  const handleSubmit = async () => {
-    if (!form.name || !form.email || !form.phone || !form.password)
-      return toast.error('All fields are required');
-    if (!isValidEmail(form.email))    return toast.error('Enter a valid email');
-    if (!isValidPhone(form.phone))    return toast.error('Enter a valid Indian phone number');
-    if (!isValidPassword(form.password)) return toast.error('Password must be at least 6 characters');
-    setLoading(true);
-    try {
-      const res = await authAPI.register(form);
-      login(res.data.token, res.data.user);
-      toast.success(`Account created! Welcome, ${res.data.user.name.split(' ')[0]}! 🎉`);
-      navigate('/');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Registration failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{
-      minHeight: '100vh', display: 'flex',
-      alignItems: 'center', justifyContent: 'center',
-      padding: '100px 20px',
-    }}>
-      <motion.div
-        initial={{ opacity: 0, y: 28 }}
-        animate={{ opacity: 1, y: 0  }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-        style={{
-          background: 'var(--surface)', borderRadius: 20,
-          border: '1px solid var(--border)', padding: '44px 40px',
-          width: '100%', maxWidth: 440,
-          boxShadow: '0 40px 100px rgba(0,0,0,0.6)',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🎟️</div>
-          <h1 style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 36, color: '#ede9e0', marginBottom: 6,
-          }}>Create Account</h1>
-          <p style={{ color: 'var(--muted)', fontSize: 14 }}>Join Cinéplex today</p>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {[
-            ['Full Name',     'text',     'name',     'John Doe'],
-            ['Email Address', 'email',    'email',    'you@example.com'],
-            ['Phone Number',  'tel',      'phone',    '+91 98765 43210'],
-            ['Password',      'password', 'password', 'Min. 6 characters'],
-          ].map(([label, type, key, ph]) => (
-            <div key={key}>
-              <label className="label">{label}</label>
-              <input className="field" type={type} placeholder={ph}
-                value={form[key]} onChange={(e) => update(key, e.target.value)}
+            <div>
+              <label className="label">Email Address</label>
+              <input className="field" type="email" placeholder="you@example.com"
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
               />
             </div>
-          ))}
-        </div>
 
-        <button className="btn-gold"
-          style={{ width: '100%', padding: 15, fontSize: 15, marginTop: 24 }}
-          onClick={handleSubmit} disabled={loading}
-        >
-          {loading ? <Spinner size={18} color="#06060c" /> : 'Create Account →'}
-        </button>
+            <button className="btn-gold"
+              style={{ width: '100%', padding: 15, fontSize: 15, marginTop: 12 }}
+              onClick={handleSendOtp} disabled={loading}
+            >
+              {loading ? <Spinner size={18} color="#06060c" /> : 'Continue with Email →'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label className="label">6-Digit Code</label>
+              <input className="field" type="text" placeholder="123456" maxLength={6}
+                value={otp} onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                onKeyDown={(e) => e.key === 'Enter' && handleVerifyOtp()}
+                style={{ fontSize: 24, letterSpacing: 8, textAlign: 'center' }}
+              />
+            </div>
 
-        <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, marginTop: 20 }}>
-          Already have an account?{' '}
-          <Link to="/login" style={{ color: 'var(--gold)', textDecoration: 'none' }}>Sign In</Link>
-        </p>
+            <button className="btn-gold"
+              style={{ width: '100%', padding: 15, fontSize: 15, marginTop: 12 }}
+              onClick={handleVerifyOtp} disabled={loading}
+            >
+              {loading ? <Spinner size={18} color="#06060c" /> : 'Verify & Login ✓'}
+            </button>
+
+            <button 
+              onClick={() => setStep('email')} 
+              style={{ background: 'none', border: 'none', color: 'var(--muted)', marginTop: 10, cursor: 'pointer', fontSize: 13 }}
+            >
+              ← Back to Email
+            </button>
+          </div>
+        )}
       </motion.div>
     </div>
   );
@@ -256,8 +233,8 @@ export default function App() {
           <Route path="/"         element={<HomePage />} />
           <Route path="/movies"   element={<MoviesPage />} />
           <Route path="/movies/:id" element={<MovieDetailPage />} />
-          <Route path="/login"    element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/login"    element={<AuthPage />} />
+          <Route path="/register" element={<AuthPage />} />
 
           {/* Protected */}
           <Route path="/movies/:id/seats" element={

@@ -48,8 +48,17 @@ export default function HomePage() {
         position: 'relative', height: '100vh',
         display: 'flex', alignItems: 'center', overflow: 'hidden',
       }}>
-        {/* BG gradient */}
-        {featuredMeta && (
+        {/* TMDB Backdrop */}
+        {featured?.trailer_url ? (
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `url(${featured.trailer_url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.35,
+            filter: 'blur(4px)',
+          }}/>
+        ) : featuredMeta && (
           <div style={{
             position: 'absolute', inset: 0,
             background: featuredMeta.grad, opacity: 0.55,
@@ -57,7 +66,7 @@ export default function HomePage() {
         )}
         <div style={{
           position:   'absolute', inset: 0,
-          background: 'radial-gradient(ellipse 70% 80% at 25% 60%, transparent 0%, #07070f 70%)',
+          background: 'linear-gradient(to right, rgba(7,7,15,1) 0%, rgba(7,7,15,0.4) 50%, rgba(7,7,15,1) 100%), linear-gradient(to bottom, transparent 60%, #07070f 100%)',
         }}/>
 
         {/* Floating particles */}
@@ -153,7 +162,7 @@ export default function HomePage() {
         </div>
 
         {/* Floating poster */}
-        {featured && featuredMeta && (
+        {featured && (
           <motion.div
             initial={{ opacity: 0, x: 60 }}
             animate={{ opacity: 1, x: 0  }}
@@ -161,26 +170,22 @@ export default function HomePage() {
             style={{
               position:     'absolute', right: '7%', top: '50%',
               transform:    'translateY(-50%)',
-              width: 250, height: 366,
+              width: 280, height: 420,
               borderRadius: 18,
-              background:   featuredMeta.grad,
+              background:   'var(--surface)',
               border:       '1px solid rgba(240,192,64,0.25)',
               boxShadow:    '0 50px 120px rgba(0,0,0,0.85)',
               overflow:     'hidden',
             }}
           >
-            <motion.div
-              animate={{ y: [0, -12, 0] }}
-              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-              style={{
-                position: 'absolute', inset: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 80,
-              }}
-            >{featuredMeta.icon}</motion.div>
+            {featured.poster_url ? (
+              <img src={featured.poster_url} alt={featured.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : featuredMeta && (
+              <div style={{ position: 'absolute', inset: 0, background: featuredMeta.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 80 }}>{featuredMeta.icon}</div>
+            )}
             <div style={{
               position:   'absolute', inset: 0,
-              background: 'linear-gradient(to top, rgba(7,7,15,0.85) 40%, transparent)',
+              background: 'linear-gradient(to top, rgba(7,7,15,0.95) 0%, transparent 40%)',
             }}/>
             <div style={{
               position: 'absolute', bottom: 0, left: 0, right: 0, padding: 22,

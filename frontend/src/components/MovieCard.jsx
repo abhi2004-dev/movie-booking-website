@@ -30,41 +30,35 @@ export default function MovieCard({ movie, delay = 0, size = 'normal' }) {
       }}
     >
       {/* ─── POSTER ───────────────────────────────────────────────────── */}
-      <div style={{ height, background: meta.grad, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ height, background: 'var(--surface-up)', position: 'relative', overflow: 'hidden' }}>
 
-        {/* Floating icon */}
-        <motion.div
-          animate={{ y: [0, -12, 0] }}
-          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-          style={{
-            position:       'absolute', inset: 0,
-            display:        'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize:       isLarge ? 66 : 56,
-          }}
-        >{meta.icon}</motion.div>
+        {movie.poster_url ? (
+          <motion.img
+            src={movie.poster_url}
+            alt={movie.title}
+            whileHover={{ scale: 1.1 }}
+            transition={{ duration: 0.6 }}
+            style={{
+              width: '100%', height: '100%', objectFit: 'cover',
+            }}
+          />
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, background: meta.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>
+            {meta.icon}
+          </div>
+        )}
 
         {/* Gradient overlay */}
         <div style={{
           position:   'absolute', inset: 0,
-          background: 'linear-gradient(to top, #0f0f1e 0%, transparent 55%)',
+          background: 'linear-gradient(to top, rgba(7,7,15,0.95) 0%, transparent 60%)',
+          pointerEvents: 'none'
         }}/>
-
-        {/* Tag badge */}
-        <div style={{
-          position:       'absolute', top: 10, right: 10,
-          background:     'rgba(7,7,15,0.65)',
-          backdropFilter: 'blur(8px)',
-          color:          'var(--gold)',
-          fontSize:       10, fontWeight: 700,
-          padding:        '3px 9px', borderRadius: 4,
-          border:         '1px solid rgba(240,192,64,0.3)',
-          letterSpacing:  0.5,
-        }}>{meta.tag}</div>
 
         {/* Title */}
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
-          padding:  '10px 14px',
+          padding:  '10px 14px', pointerEvents: 'none'
         }}>
           <div style={{
             fontFamily:  "'Cormorant Garamond', serif",
