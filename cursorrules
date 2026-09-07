@@ -1,0 +1,81 @@
+# Movie Booking Platform — Cursor Rules
+
+## Project Context
+This is a placement-portfolio full-stack project, not a startup MVP. The goal is
+to demonstrate serious engineering (concurrency, caching, performance, testing,
+documentation) through ONE cohesive system — not to add technologies for resume
+keywords. Read PRD.md, architecture.md, and design.md before making structural
+decisions.
+
+## Tech Stack (locked — do not substitute without explicit user approval)
+- Frontend: Next.js (App Router) + TypeScript + Tailwind CSS
+- UI micro-interactions: React Bits (CLI-installed, source-in-project components only)
+- Backend: FastAPI (Python 3.11+)
+- Database: PostgreSQL (NOT MongoDB — this data is relational, use it)
+- Cache / locking: Redis
+- External data: TMDB API (movie catalog, posters, ratings)
+- Deployment: AWS (EC2/ECS, RDS, S3+CloudFront, Route53, ACM)
+
+## Explicitly Forbidden (out of scope for this project)
+- Kubernetes, Terraform, Kafka, Jenkins, Prometheus — belongs to the separate
+  DevOps portfolio project, not this one
+- Microservices split — use a well-structured FastAPI monolith
+- Redlock / multi-node distributed locking — single-instance Redis SETNX+TTL
+  gate backed by a Postgres transaction is sufficient and more defensible
+- Postgres read replicas — no justified write/read volume for this
+- MongoDB, GraphQL — REST + Postgres is the correct fit here
+- Any other animation/UI library besides React Bits — do not introduce
+  Framer Motion standalone, Magic UI, HeroUI, etc.
+
+## UI / Design Rules
+- Light mode default. Base background white/off-white, primary text charcoal.
+- Single accent color: purple (~#6C4FE0 family). Used for primary CTAs, active
+  states, selected states, brand elements only — not decoratively everywhere.
+- Status colors are functional only: green = success/confirmed, orange/red =
+  error/failed/warning. Do not use gradients for status.
+- Pill-shaped (fully rounded) navigation tabs, filter chips, date selectors.
+- Cards: rounded-lg/xl corners, subtle shadow, white background, image + title
+  + metadata stacked cleanly. No glassmorphism, no dark gradient hero sections,
+  no default shadcn purple-gradient-blob backgrounds — these read as generic
+  AI-generated UI and must be avoided.
+- Seat map: small uniform rounded-square buttons in a tight grid, color-coded
+  by state, with a legend row. Follow design.md for exact states/colors.
+- React Bits usage should be sparing and purposeful — hover reveals, subtle
+  press feedback, animated text on hero sections. Never add animation for its
+  own sake; every use must have a stated UX reason in design.md.
+
+## Backend / Concurrency Rules
+- Postgres is always the source of truth for booking state. Redis is a fast
+  gate/lock, never the final authority.
+- Seat lock lifecycle: AVAILABLE → HELD (Redis TTL) → BOOKED (Postgres
+  transaction) with automatic reversion HELD → AVAILABLE on expiry or payment
+  failure.
+- Every booking/payment-confirming endpoint must be idempotent (idempotency
+  key on the request, not just at the payment-gateway layer).
+- Any concurrency-critical code path requires an accompanying test before it's
+  considered done — no exceptions.
+- Handle and document these failure modes explicitly wherever relevant: Redis
+  down, DB down, duplicate request, expired lock, partial payment failure.
+
+## Coding Conventions
+- Backend: standard FastAPI project layout — routers/, services/, models/,
+  schemas/, core/ (config, security), db/ (session, migrations via Alembic).
+  Business logic lives in services/, not in route handlers.
+- Frontend: feature-based folder structure under app/ and components/;
+  co-locate component + styles + tests where practical.
+- Naming: snake_case for Python, camelCase for TypeScript/JS, PascalCase for
+  React components and Pydantic/SQLAlchemy models.
+- Every non-trivial function/endpoint gets a docstring describing purpose,
+  not just parameters.
+- Commit messages: conventional commits style (feat:, fix:, docs:, test:,
+  refactor:, perf:).
+
+## Documentation & Honesty Rules
+- Never invent or assume performance numbers, benchmark results, or scale
+  claims. If a metric hasn't been measured yet, use a clearly marked
+  placeholder (e.g. `<TBD after load test>`), never a fabricated number.
+- Any comment or doc claiming something is "production-grade," "scalable,"
+  or "handles X users" must be backed by an actual test in the repo, or
+  removed/softened.
+- When in doubt about scope, prefer the simpler solution and note the
+  trade-off in architecture.md rather than silently over-engineering.
