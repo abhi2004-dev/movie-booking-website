@@ -21,11 +21,12 @@ interface ShowData {
 export default function SeatMap() {
   const params = useParams();
   const router = useRouter();
-  const showId = params.id;
+  const showId = params.id as string;
 
   const [showData, setShowData] = useState<ShowData | null>(null);
   const [myLockedSeats, setMyLockedSeats] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchSeats = async () => {
     try {
@@ -88,16 +89,54 @@ export default function SeatMap() {
     }
   };
 
-  const handleCheckout = () => {
-    // For now, just an alert. In the next phases, this will trigger the real payment flow.
-    alert(`Proceeding to checkout with ${myLockedSeats.length} seat(s)!`);
-    // router.push(`/checkout?show=${showId}&seats=${myLockedSeats.join(",")}`);
+  const handleCheckout = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Please log in to book tickets.");
+      router.push("/login");
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    // Generate an Idempotency Key natively in the browser to prevent double charges
+    const idempotencyKey = crypto.randomUUID();
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/bookings/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` // Attach JWT for authentication
+        },
+        body: JSON.stringify({
+          show_id: parseInt(showId),
+          seat_ids: myLockedSeats,
+          idempotency_key: idempotencyKey
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Checkout failed");
+      }
+
+      const bookingResult = await res.json();
+      alert(`Success! Transaction ID: ${bookingResult.transaction_id}`);
+      
+      // Clear local locks and redirect to dashboard (or home for now)
+      setMyLockedSeats([]);
+      router.push("/");
+    } catch (err: any) {
+      alert(`Checkout Error: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (loading) return <div className="py-12 text-center">Loading Seat Layout...</div>;
   if (!showData) return <div className="py-12 text-center text-red-500">Failed to load seating chart.</div>;
 
-  // Calculate total price of locked seats
   const totalPrice = showData.seats
     .filter(seat => myLockedSeats.includes(seat.id))
     .reduce((sum, seat) => sum + seat.price, 0);
@@ -106,28 +145,25 @@ export default function SeatMap() {
     <div className="py-12 max-w-4xl mx-auto px-4 pb-32">
       <TextReveal text={`Seat Selection`} className="text-3xl font-bold text-primary mb-8 text-center" />
 
-      {/* Screen Indicator */}
       <div className="w-full h-8 bg-gray-200 rounded-t-3xl mb-12 shadow-inner flex items-center justify-center text-sm text-secondary tracking-widest">
         SCREEN
       </div>
 
-      {/* Visual Legend */}
       <div className="flex justify-center gap-6 mb-12 text-sm font-medium text-secondary">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 bg-transparent border-2 border-gray-300 rounded-md"></div> Free
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-accent rounded-md"></div> Selected (Your Lock)
+          <div className="w-5 h-5 bg-accent rounded-md"></div> Selected
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-gray-400 rounded-md"></div> Locked (Someone Else)
+          <div className="w-5 h-5 bg-gray-400 rounded-md"></div> Locked
         </div>
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 bg-red-500 rounded-md"></div> Booked
         </div>
       </div>
 
-      {/* Seat Grid */}
       <div className="flex flex-wrap justify-center gap-3 max-w-2xl mx-auto">
         {showData.seats.map((seat) => {
           const isMySeat = myLockedSeats.includes(seat.id);
@@ -148,6 +184,7 @@ export default function SeatMap() {
               key={seat.id}
               onClick={() => handleSeatClick(seat)}
               className={seatClass}
+              disabled={isProcessing}
               title={`Seat ${seat.row_label}${seat.seat_number} - ₹${seat.price}`}
             >
               {seat.row_label}{seat.seat_number}
@@ -156,7 +193,6 @@ export default function SeatMap() {
         })}
       </div>
 
-      {/* Sticky Action Bar */}
       {myLockedSeats.length > 0 && (
         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex justify-between items-center md:px-32 z-50">
           <div className="flex flex-col">
@@ -165,9 +201,10 @@ export default function SeatMap() {
           </div>
           <button 
             onClick={handleCheckout}
-            className="px-8 py-3 bg-accent text-white rounded-full font-bold hover:opacity-90 transition-opacity"
+            disabled={isProcessing}
+            className="px-8 py-3 bg-accent text-white rounded-full font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            Book Tickets
+            {isProcessing ? "Processing..." : "Book Tickets"}
           </button>
         </div>
       )}
