@@ -1,0 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# Virtual Environments
+venv/
+env/
+.venv/
+.env/
+
+# Environment variables
+.env
+.env.local
+
+# Archives / Uploads
+*.zip
+*.tar.gz
+*.rar
+
+# Testing / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE / OS specific
+.vscode/
+.idea/
+.DS_Store
+__MACOSX/
+
+# Logs
+*.log
