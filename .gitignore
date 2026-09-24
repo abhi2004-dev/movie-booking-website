@@ -1,0 +1,15 @@
+# Environments & Secrets
+.env
+.env.*
+!.env.example
+
+# Python / Backend
+venv/
+__pycache__/
+*.pyc
+alembic.ini
+
+# Node / Frontend
+node_modules/
+.next/
+out/
