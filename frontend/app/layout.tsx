@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/components/auth/AuthContext";
+import { ToastProvider } from "@/components/ui/Toast";
+import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const poppins = Poppins({ weight: ["400", "600", "700", "800"], subsets: ["latin"], variable: "--font-poppins" });
 
 export const metadata: Metadata = {
-  title: "Starpass",
-  description: "Movie Booking Platform",
+  title: "Starpass — High-Concurrency Cinema Booking",
+  description: "Next-generation movie ticketing platform with sub-millisecond seat holds, zero double-booking architecture, and IMAX / Dolby Cinema experiences.",
 };
 
 export default function RootLayout({
@@ -15,19 +20,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <nav className="max-w-7xl mx-auto p-4 flex justify-between items-center">
-          <div className="font-bold text-2xl tracking-tight lowercase text-primary">starpass</div>
-          <div className="flex space-x-1 bg-white rounded-full shadow-sm p-1 border border-gray-100">
-            <button className="px-5 py-2 rounded-full bg-accent text-white font-medium text-sm transition-colors">Movies</button>
-            <button className="px-5 py-2 rounded-full text-secondary hover:bg-gray-50 font-medium text-sm transition-colors">Theatres</button>
-            <button className="px-5 py-2 rounded-full text-secondary hover:bg-gray-50 font-medium text-sm transition-colors">Profile</button>
-          </div>
-        </nav>
-        <main className="max-w-7xl mx-auto p-4">
-          {children}
-        </main>
+    <html lang="en" className="dark">
+      <body className={`${inter.variable} ${poppins.variable} font-sans bg-[#090B10] text-white min-h-screen flex flex-col antialiased`}>
+        <AuthProvider>
+          <ToastProvider>
+            <Navbar />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );

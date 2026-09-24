@@ -1,0 +1,17 @@
+# frontend/Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+COPY . .
+
+# Inject the API URL so Next.js can resolve it during the build
+ENV NEXT_PUBLIC_API_URL=http://localhost:8000
+
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm", "start"]
