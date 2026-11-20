@@ -18,17 +18,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:3003",
-        "http://localhost:8000",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3002",
-        "http://127.0.0.1:3003",
-        "http://127.0.0.1:8000",
+        "http://3.93.195.249:3000"  # Add your AWS frontend URL
     ],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):[0-9]+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,4 +41,4 @@ def health_check():
         "redis_connected": is_redis_online(),
         "database": "postgresql",
         "concurrency_mode": "hybrid_redis_memory"
-    }
+    }
